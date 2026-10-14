@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/void-banner.png">
+    <img src=".github/assets/void-banner.png" alt="Void — a local-first, open-source agentic coding CLI" width="100%">
+  </picture>
+</p>
+
 # Void
 
 Void — a local-first, open-source agentic coding CLI.
