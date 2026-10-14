@@ -1,0 +1,26 @@
+{
+  "settingsVersion": 1,
+  "mcpServers": {
+    "example": {
+      "command": "node",
+      "args": ["${PWD}/examples/mcp-server-config/server.mjs"],
+      "env": {
+        "EXAMPLE_MODE": "demo"
+      }
+    }
+  },
+  "permissions": [
+    {
+      "tool": "mcp__example__add",
+      "matches": "*",
+      "action": "allow",
+      "message": "arithmetic is safe"
+    },
+    {
+      "tool": "mcp__example__*",
+      "matches": "*",
+      "action": "ask",
+      "message": "the example server is a demo — confirm other tools by hand"
+    }
+  ]
+}

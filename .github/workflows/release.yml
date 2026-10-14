@@ -1,0 +1,160 @@
+# Release workflow (ADR-0014, channel 1) — DRY-RUN-ONLY from this branch is
+# fine: it never runs except on a `v*` TAG PUSH, and creating tags/releases is
+# reserved to the owner (AGENTS.md: nothing outward-facing without the owner).
+#
+# Cross-compile decision (verified empirically with bun 1.4.0 on a macOS
+# arm64 host before this workflow was written):
+#   `bun build --compile --target=bun-{darwin-arm64,darwin-x64,linux-x64,
+#   linux-arm64}` ALL succeed from a single host — bun downloads a ~30–40 MB
+#   target shim per foreign target on first use. Verified outputs: Mach-O
+#   arm64/x86_64 and ELF x86-64/aarch64 (`file`-checked), including a full
+#   591-module build of this repo.
+# Consequences, deliberately chosen:
+#   - NO macos-13 (x64 runner) leg is needed: macos-x64 cross-compiles on the
+#     arm64 macos-latest runner, and the binary is smoke-tested through
+#     Rosetta 2 (`arch -x86_64`), which GitHub's arm64 macOS images ship.
+#   - NO qemu is needed to BUILD linux-arm64 (cross target from ubuntu-latest);
+#     qemu-user-static is installed only to SMOKE-TEST the arm64 ELF on the
+#     x64 runner.
+#   - The matrix below is per-TARGET (not per-runner): darwin legs share
+#     macos-latest, linux legs share ubuntu-latest.
+# Each build leg runs `bun run sync-prompt` first — the same chain semantics
+# as `bun run build` — then compiles with an explicit --target and outfile
+# dist/void-<target> (the build script's fixed `--outfile dist/void` cannot
+# be parameterized without touching the dev-facing build chain).
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # required to create the GitHub Release and upload assets
+
+jobs:
+  build:
+    name: build void-${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-arm64
+            runner: macos-latest
+            bun_target: bun-darwin-arm64
+            smoke: native
+          - name: macos-x64
+            runner: macos-latest
+            bun_target: bun-darwin-x64
+            smoke: rosetta
+          - name: linux-x64
+            runner: ubuntu-latest
+            bun_target: bun-linux-x64
+            smoke: native
+          - name: linux-arm64
+            runner: ubuntu-latest
+            bun_target: bun-linux-arm64
+            smoke: qemu
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Build dist/void-${{ matrix.name }} (sync-prompt + targeted compile)
+        run: |
+          bun run sync-prompt
+          bun build --compile --target=${{ matrix.bun_target }} src/cli.ts --outfile "dist/void-${{ matrix.name }}"
+      - name: Smoke test (native)
+        if: matrix.smoke == 'native'
+        run: "./dist/void-${{ matrix.name }} --version"
+      # GitHub's arm64 macOS runner images include Rosetta 2; an x86_64
+      # binary built by cross-compilation is exercised for real here.
+      - name: Smoke test (Rosetta 2)
+        if: matrix.smoke == 'rosetta'
+        run: |
+          arch -x86_64 /usr/bin/true || { echo "Rosetta 2 unavailable on this runner — cannot smoke-test the x64 build" >&2; exit 1; }
+          arch -x86_64 "./dist/void-${{ matrix.name }}" --version
+      # Cross-compiled arm64 ELF, executed on the x64 runner through
+      # qemu-user-static (explicit interpreter invocation — no binfmt needed).
+      - name: Install qemu-user-static (linux-arm64 leg only)
+        if: matrix.smoke == 'qemu'
+        run: sudo apt-get update && sudo apt-get install -y qemu-user-static
+      - name: Smoke test (qemu-aarch64)
+        if: matrix.smoke == 'qemu'
+        run: qemu-aarch64-static "./dist/void-${{ matrix.name }}" --version
+      - name: Assert artifact naming (pre-checksum half)
+        run: bash scripts/assert-release-artifact.sh "dist/void-${{ matrix.name }}"
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: "void-${{ matrix.name }}"
+          path: "dist/void-${{ matrix.name }}"
+          if-no-files-found: error
+
+  release:
+    name: checksum, notes, and attach to the GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Download all built targets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: void-*
+          merge-multiple: true
+          path: dist
+      - name: Assert tag matches package.json version (ADR-0014 version discipline)
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "${GITHUB_REF_NAME}" != "v${PKG_VERSION}" ]; then
+            echo "tag ${GITHUB_REF_NAME} does not match package.json v${PKG_VERSION}" >&2
+            exit 1
+          fi
+      - name: Generate SHA256SUMS (binaries only — what install.sh consumes)
+        run: |
+          cd dist
+          sha256sum void-* > SHA256SUMS
+          cat SHA256SUMS
+          # exactly one line per canonical target, nothing extra
+          [ "$(wc -l < SHA256SUMS)" -eq 4 ] || { echo "expected 4 checksum lines" >&2; exit 1; }
+      - name: Assert checksums (the same assertions every dry-run makes)
+        run: |
+          for target in macos-arm64 macos-x64 linux-x64 linux-arm64; do
+            bash scripts/assert-release-artifact.sh "dist/void-${target}" dist/SHA256SUMS
+          done
+      # AGPL discipline (ADR-0004): the Release notes carry the full license
+      # text and the third-party NOTICE; LICENSE + NOTICE are also attached
+      # as assets. tests/release-discipline.test.ts asserts these references.
+      - name: Assemble release notes (template + checksums + NOTICE + LICENSE)
+        run: |
+          sed -e "s/__TAG__/${GITHUB_REF_NAME}/g" .github/release-notes-template.md > release-notes.md
+          {
+            echo
+            echo "### SHA256SUMS"
+            echo
+            echo '```'
+            cat dist/SHA256SUMS
+            echo '```'
+            echo
+            echo "---"
+            echo
+            cat NOTICE
+            echo
+            echo "---"
+            echo
+            cat LICENSE
+          } >> release-notes.md
+      - name: Attach binaries, SHA256SUMS, LICENSE and NOTICE to the Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release-notes.md
+          fail_on_unmatched_files: true
+          files: |
+            dist/void-*
+            dist/SHA256SUMS
+            LICENSE
+            NOTICE

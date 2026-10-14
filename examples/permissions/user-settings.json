@@ -1,0 +1,24 @@
+{
+  "settingsVersion": 1,
+  "permissions": [
+    {
+      "tool": "bash",
+      "matches": { "command": "/^bun run /" },
+      "action": "allow",
+      "message": "I trust my own build scripts — bun run anything, anywhere"
+    },
+    {
+      "tool": "bash",
+      "matches": { "command": "/\\bsudo\\b/" },
+      "action": "reject",
+      "message": "personal policy: no agent of mine runs sudo, in any project"
+    },
+    {
+      "tool": "bash",
+      "matches": { "command": "/\\bgit (?:log|show|diff)\\b/" },
+      "action": "allow"
+    }
+  ],
+  "defaultModel": "anthropic/claude-sonnet-4-5",
+  "providerTimeoutMs": 120000
+}

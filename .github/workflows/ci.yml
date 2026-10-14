@@ -1,0 +1,129 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      # Linux: bubblewrap lets the capability-guarded bwrap integration suites
+      # run for real (unprivileged — the Debian/Ubuntu package is not setuid);
+      # ripgrep feeds the grep tool's real-spawn suites under bun test.
+      # The sysctl lifts Ubuntu 24.04's AppArmor gate on unprivileged user
+      # namespaces (absent on older kernels — hence the tolerated failure),
+      # which both bwrap and the offline job's unshare wrapper depend on.
+      - name: Install sandbox/search tooling (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          sudo apt-get update && sudo apt-get install -y bubblewrap ripgrep
+      - name: Ensure ripgrep (macOS)
+        if: runner.os == 'macOS'
+        run: command -v rg || brew install ripgrep
+      - name: Lint (Biome)
+        run: bun run lint
+      - name: Typecheck (tsc)
+        run: bun run check
+      - name: Test (Vitest)
+        run: bun run test
+      # The Bun-runtime pass is where the real-sandbox suites execute:
+      # sandbox-exec on macOS runners, bwrap on Linux runners.
+      - name: Test (Bun runtime — real sandbox suites)
+        run: bun test --timeout 30000
+      - name: Build the standalone binary and smoke it
+        run: |
+          bun run build
+          ./dist/void --version
+
+  # ADR-0002 property 5, kernel-level half: the offline suites must pass with
+  # ALL network denied by the OS, not just with fetch stubbed in-process (the
+  # in-process half is src/app/egress.test.ts). Any egress attempt — telemetry,
+  # update pings, a provider bypassing its injection seam — fails the job.
+  offline:
+    name: offline suites (OS-level network denied)
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Install ripgrep (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          sudo apt-get update && sudo apt-get install -y ripgrep
+      # macOS wrapper: sandbox-exec profile denying every network operation at
+      # the kernel (verified locally on arm64; plain `(allow default)` keeps
+      # tmpdirs and Bun itself working — only networking is denied).
+      # Scope note, honestly: the Bun real-sandbox suites cannot run nested
+      # inside this wrapper — applying a second sandbox-exec profile from a
+      # process whose profile already contains deny rules fails with
+      # `sandbox_apply: Operation not permitted` (verified empirically; the
+      # composition rules are undocumented). Under vitest those suites skip
+      # cleanly (they are Bun-gated), and src/app/egress.test.ts probes for
+      # exactly that capability and skips only its sandboxed-bash variant, so
+      # the wrapped run stays a full-suite, zero-exclusion vitest pass plus
+      # the CLI process-spawn smoke.
+      - name: Full vitest suite with network denied (macOS)
+        if: runner.os == 'macOS'
+        run: sandbox-exec -p '(version 1)(allow default)(deny network*)' ./node_modules/.bin/vitest run
+      - name: CLI spawn smoke with network denied (macOS)
+        if: runner.os == 'macOS'
+        run: sandbox-exec -p '(version 1)(allow default)(deny network*)' bun test --timeout 30000 src/cli.test.ts
+      # Linux wrapper: unprivileged user + network namespace (no root needed).
+      # bubblewrap is deliberately NOT installed in this job: bwrap inside
+      # another user namespace is unverified nesting, the real bwrap suites
+      # run (for real) in the `ci` job above, and here they skip cleanly so
+      # the wrapped run covers every suite that can execute.
+      - name: Full suite with network denied (Linux)
+        if: runner.os == 'Linux'
+        run: unshare -Urn sh -c 'VOID_OFFLINE_CI=1 bun test --timeout 30000 && VOID_OFFLINE_CI=1 ./node_modules/.bin/vitest run'
+
+  # ADR-0014: every push exercises the release pipeline's build → rename →
+  # checksum → assertion path for ONE target (macOS arm64, native — no
+  # cross-compile shim download, so this stays fast) WITHOUT creating any
+  # release. What CI asserts here is exactly what the tag-gated release
+  # workflow asserts (same script: scripts/assert-release-artifact.sh).
+  # Manual full-matrix dry-runs: .github/workflows/release-dry-run.yml.
+  release-dry-run:
+    name: release dry-run (ADR-0014, no publish)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Build + rename artifact to the release name
+        run: |
+          bun run build
+          mv dist/void dist/void-macos-arm64
+      - name: Generate SHA256SUMS and assert naming + checksum format
+        run: |
+          cd dist
+          shasum -a 256 void-* > SHA256SUMS
+          cat SHA256SUMS
+      - name: Assert release artifact discipline (no release created)
+        run: |
+          ./dist/void-macos-arm64 --version
+          bash scripts/assert-release-artifact.sh dist/void-macos-arm64 dist/SHA256SUMS

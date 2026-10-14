@@ -1,0 +1,47 @@
+{
+  "name": "void-cli",
+  "version": "0.1.0",
+  "license": "AGPL-3.0-only",
+  "private": true,
+  "description": "Void — a local-first, open-source agentic coding CLI (binary name: void)",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/haythemsellami/Void.git"
+  },
+  "homepage": "https://github.com/haythemsellami/Void#readme",
+  "bugs": "https://github.com/haythemsellami/Void/issues",
+  "keywords": [
+    "ai",
+    "agent",
+    "agentic",
+    "cli",
+    "coding-assistant",
+    "llm",
+    "local-first",
+    "sandbox"
+  ],
+  "bin": {
+    "void": "./src/cli.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "lint": "biome check .",
+    "check": "tsc --noEmit",
+    "build": "bun run sync-prompt && bun build --compile src/cli.ts --outfile dist/void",
+    "sync-prompt": "bun scripts/sync-prompt.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "@types/bun": "^1.4.3",
+    "@types/react": "^19.3.0",
+    "ink-testing-library": "^4.0.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
+  },
+  "dependencies": {
+    "ink": "^6.8.0",
+    "react": "^19.3.0",
+    "react-devtools-core": "^8.0.0"
+  }
+}

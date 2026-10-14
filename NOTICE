@@ -1,0 +1,26 @@
+NOTICE — third-party software distributed with Void
+=====================================================
+
+Void is licensed AGPL-3.0-only; the full license text is in the LICENSE file
+accompanying this distribution (and is appended to every GitHub Release's
+notes). This NOTICE lists the third-party software compiled into the `void`
+binary (ADR-0014).
+
+The standalone binary embeds the npm dependencies of this repository, each
+under its own license:
+
+  - react 19.x — MIT — Copyright (c) Meta Platforms, Inc. and affiliates.
+    https://react.dev
+  - ink 6.x — MIT — Copyright (c) Vadym Demedes; Copyright (c) Sindre Sorhus.
+    https://github.com/vadimdemedes/ink
+  - react-devtools-core 8.x — MIT (per its package manifest; the package
+    itself ships no license file) — part of the React project,
+    Copyright (c) Meta Platforms, Inc. and affiliates.
+    https://github.com/facebook/react
+
+The above copyright and permission notices are reproduced from the respective
+projects' npm distributions (MIT text: https://opensource.org/licenses/MIT).
+
+No other third-party code is compiled into the binary: the agent core, tools,
+providers, sandboxing, and prompts are original work (clean-room rules per
+this repository's AGENTS.md).

@@ -1,0 +1,25 @@
+{
+  "settingsVersion": 1,
+  "permissions": [
+    {
+      "tool": "bash",
+      "matches": { "command": "/^bun run deploy/" },
+      "action": "ask",
+      "message": "workspace policy outranks my user rule here: deploys need a human"
+    },
+    {
+      "tool": "bash",
+      "matches": { "command": "/\\bnpm (?:install|ci)\\b/" },
+      "action": "allow",
+      "message": "this repo's install scripts are reviewed; installs may run silently"
+    },
+    {
+      "tool": "edit_file",
+      "matches": { "path": "/(^|\\/)generated\\//" },
+      "action": "reject",
+      "message": "generated/ is build output — edit the source, not the artifact"
+    }
+  ],
+  "defaultModel": "anthropic/claude-haiku-4-5",
+  "compaction": { "thresholdPercent": 85, "keepTurns": 2 }
+}
