@@ -110,6 +110,11 @@ jobs:
           pattern: void-*
           merge-multiple: true
           path: dist
+      # upload-artifact@v4 stores zips without preserving the exec bit —
+      # restore it before the artifact assertions (and Release attachment)
+      # check it.
+      - name: Restore the executable bit (artifact zips drop it)
+        run: chmod +x dist/void-*
       - name: Assert tag matches package.json version (ADR-0014 version discipline)
         run: |
           PKG_VERSION="$(node -p "require('./package.json').version")"
