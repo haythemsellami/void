@@ -187,11 +187,10 @@ describe("package identity is untouched (owner-only publishing)", () => {
 });
 
 describe("compiled-binary version stamp agrees with the release gate", () => {
-  it("src/cli.ts VERSION equals package.json version (what the tag must match)", () => {
+  it("the VERSION constant equals package.json version (what the tag must match)", async () => {
     const pkg = JSON.parse(read("package.json")) as { version: string };
-    const cli = read("src/cli.ts");
-    const m = cli.match(/export const VERSION = "([^"]+)"/);
-    expect(m?.[1]).toBe(pkg.version);
+    const { VERSION } = await import("../src/version");
+    expect(VERSION).toBe(pkg.version);
   });
 
   it("the built binary reports that version (skipped when dist/ is absent — gitignored)", () => {

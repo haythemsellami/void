@@ -39,8 +39,8 @@
  */
 
 import { type ChildProcess, spawn } from "node:child_process";
-import { VERSION } from "../cli";
 import type { JsonObject, ToolErrorCode, ToolResult } from "../contracts";
+import { VERSION } from "../version";
 import { buildChildEnv, type ExpandedServerConfig, expandServerConfig } from "./env";
 import { createLineFrameParser } from "./frame";
 
