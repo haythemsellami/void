@@ -76,7 +76,7 @@ import {
 import { JsonlThreadStore } from "./store/jsonl";
 
 /** CLI version — keep in sync with package.json. */
-export const VERSION = "0.1.0";
+export const VERSION = "1.0.0";
 
 // ---------------------------------------------------------------------------
 // Help rendering (hand-rolled; the SUBCOMMANDS table is the source of truth)

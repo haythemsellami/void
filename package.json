@@ -1,9 +1,9 @@
 {
   "name": "void-cli",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "license": "AGPL-3.0-only",
   "private": true,
-  "description": "Void — a local-first, open-source agentic coding CLI (binary name: void)",
+  "description": "Void \u2014 a local-first, open-source agentic coding CLI (binary name: void)",
   "type": "module",
   "repository": {
     "type": "git",

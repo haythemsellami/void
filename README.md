@@ -71,7 +71,7 @@ Requires [Bun](https://bun.sh) ≥ 1.4.
 ## Quickstart (3 commands)
 
 ```sh
-curl -fsSL <release-host>/install.sh | bash   # or: npm install -g void-cli
+curl -fsSL https://raw.githubusercontent.com/haythemsellami/Void/main/install.sh | bash   # or: npm install -g void-cli
 export VOID_ANTHROPIC_KEY=sk-…                # or --model ollama/<id> for fully-local
 void run "explain what this repo does"
 ```
