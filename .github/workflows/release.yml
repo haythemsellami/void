@@ -79,13 +79,16 @@ jobs:
           arch -x86_64 /usr/bin/true || { echo "Rosetta 2 unavailable on this runner — cannot smoke-test the x64 build" >&2; exit 1; }
           arch -x86_64 "./dist/void-${{ matrix.name }}" --version
       # Cross-compiled arm64 ELF, executed on the x64 runner through
-      # qemu-user-static (explicit interpreter invocation — no binfmt needed).
-      - name: Install qemu-user-static (linux-arm64 leg only)
+      # qemu-user-static (explicit interpreter invocation — no binfmt needed)
+      # + the arm64 libc sysroot: qemu needs the target's dynamic linker
+      # (/lib/ld-linux-aarch64.so.1), which only exists via libc6-arm64-cross
+      # at /usr/aarch64-linux-gnu — pass it with -L.
+      - name: Install qemu-user-static + arm64 sysroot (linux-arm64 leg only)
         if: matrix.smoke == 'qemu'
-        run: sudo apt-get update && sudo apt-get install -y qemu-user-static
+        run: sudo apt-get update && sudo apt-get install -y qemu-user-static libc6-arm64-cross
       - name: Smoke test (qemu-aarch64)
         if: matrix.smoke == 'qemu'
-        run: qemu-aarch64-static "./dist/void-${{ matrix.name }}" --version
+        run: qemu-aarch64-static -L /usr/aarch64-linux-gnu "./dist/void-${{ matrix.name }}" --version
       - name: Assert artifact naming (pre-checksum half)
         run: bash scripts/assert-release-artifact.sh "dist/void-${{ matrix.name }}"
       - name: Upload artifact
