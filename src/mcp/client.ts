@@ -37,7 +37,9 @@
  * - Child exit settles every pending call with a structured error and marks
  *   the server closed; later calls fail fast without touching a dead pipe.
  */
+
 import { type ChildProcess, spawn } from "node:child_process";
+import { VERSION } from "../cli";
 import type { JsonObject, ToolErrorCode, ToolResult } from "../contracts";
 import { buildChildEnv, type ExpandedServerConfig, expandServerConfig } from "./env";
 import { createLineFrameParser } from "./frame";
@@ -100,7 +102,7 @@ export interface McpConnectOptions {
 export const DEFAULT_MCP_CLIENT_INFO: Readonly<{
   readonly name: string;
   readonly version: string;
-}> = { name: "void", version: "0.1.0" };
+}> = { name: "void", version: VERSION };
 
 /** Structured failure of a server interaction (mapped to ToolError at the edges). */
 export class McpServerError extends Error {

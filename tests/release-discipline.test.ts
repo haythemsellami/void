@@ -166,9 +166,10 @@ describe("package identity is untouched (owner-only publishing)", () => {
     keywords?: string[];
   };
 
-  it("keeps the name/version exactly as before this workstream", () => {
+  it("keeps the name exactly and the version equal to the CLI VERSION constant", async () => {
     expect(pkg.name).toBe("void-cli");
-    expect(pkg.version).toBe("0.1.0");
+    const { VERSION } = await import("../src/cli");
+    expect(pkg.version).toBe(VERSION);
   });
 
   it("stays private — nothing here can be npm-published by accident", () => {
